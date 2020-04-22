@@ -2,9 +2,10 @@ import re
 import random
 # new_text_length = int(input("New text length:\n"))
 # text = input().split()
-iotext = open("gc.txt", "r", encoding="utf8")
+iotext = open("samples/gc.txt", "r", encoding="utf8")
 import matplotlib.pyplot as plt
 # text = iotext.read().split()
+from datetime import datetime, date
 
 word_dict = {}
 
@@ -19,9 +20,8 @@ def intify(l):
 	return map(lambda x: int(x), l)
 
 class message:
-	def __init__(self, date, time, text, speaker_num):
-		self.date = date
-		self.time = time
+	def __init__(self, dt, text, speaker_num):
+		self.dt = dt
 		self.text = text
 		self.speaker_num = speaker_num
 
@@ -32,49 +32,40 @@ class chat:
 		self.num_speak = {} #num_speak is name -> integer
 		for i in chat_text:
 			if re.search("(\d\d|\d)/(\d\d|\d)/(\d\d|\d), (\d\d|\d):(\d\d|\d) (AM|PM) - (.*):", i):
-				date = i.split(",")[0]
-				time = re.search("(\d\d|\d):(\d\d|\d) (AM|PM)", i)
-				if date:
-					date = tuple(intify(date.split("/")))
-				if time:
-					time = time.group().split()
-					time[0] = list(intify(time[0].split(":")))
-					if time[1] == "PM":
-						time[0][0] += 12
-					time = tuple(time[0])
+				i = i.split(" - ")
+				dt = datetime.strptime(i[0], "%m/%d/%y, %I:%M %p")
 				# Will bug a bit if somebodies name conbtains ": "inside.....
 				# Stop at first ":"?
 				# print(i.split(":"))
-				speaker = re.search(" - (.*)", i.split(": ")[0])
+				speaker = i[1].split(": ")[0]
 				# print(speaker)
-				text = re.split("(.*): ", i, 1)[-1]
+				text = "".join(i[1].split(": ")[1:])
 				if speaker:
-					speaker = speaker.group()[3:]
 					if speaker in self.num_speak:
-						self.message_list.append(message(date, time, text[:-1], self.num_speak[speaker]))
+						self.message_list.append(message(dt, text[:-1], self.num_speak[speaker]))
 					else:
 						self.num_speak[speaker] = len(self.speakers)
 						self.speakers.append(speaker)
-						self.message_list.append(message(date, time, text[:-1], self.num_speak[speaker]))
+						self.message_list.append(message(dt, text[:-1], self.num_speak[speaker]))
 	def __str__(self):
 		string = ""
 		for i in self.message_list:
-			string += "{}|{}|{}|{}\n".format("/".join(stringify(i.date)), "".join(stringify(i.time), self.speakers[i.speaker_num], i.text))
+			string += "{}|{}|{}\n".format(i.dt.strftime("%d/%m/%y %H:%M"), self.speakers[i.speaker_num], i.text)
 		return string
 
 def stats(i_chat):
 	#smt - speaker message tally
 	smt = [{'total_messages':0,'initiated':0,'ert':0, 'trt':0.0, 'trs': 0}]*len(i_chat.speakers)
-	start_date = i_chat.message_list[0].date
+	start_date = i_chat.message_list[0].dt.date()
 	# print("start date:" + str(start_date))
-	end_date = i_chat.message_list[-1].date
+	end_date = date.today()
 	#mmt - month message tally, key - (month,year), value - tally
-	month_keys = [((i+start_date[0])%12 if (i+start_date[0])%12 != 0  else 12, start_date[2] + int((i+start_date[0]-1)/12)) for i in range((end_date[2]-start_date[2])*12+end_date[0]-start_date[0]+1)]
+	month_keys = [((i+start_date.month)%12 if (i+start_date.month)%12 != 0  else 12, start_date.year + int((i+start_date.month-1)/12)) for i in range((end_date.year-start_date.year)*12+end_date.month-start_date.month+1)]
 	mmt = {key: [0]*len(i_chat.speakers) for key in month_keys}
 	# print(mmt)
 	for i in i_chat.message_list:
 		smt[i.speaker_num]['total_messages'] += 1
-		mmt[(i.date[0], i.date[2])][i.speaker_num] += 1
+		mmt[(i.dt.month, i.dt.year)][i.speaker_num] += 1
 	print(mmt)
 	for sn, vals in enumerate(smt):
 		speaker_name = i_chat.speakers[sn]
@@ -83,29 +74,6 @@ def stats(i_chat):
 		plt.legend()
 	plt.show()
 	# plt.savefig('chat_graph.png', bbox_inches = 'tight', dpi = 300, figsize = [1600, 1600])
-
-
-
-#def reformat(messages):
-	# mess_list = []
-	# for i in messages:
-	# 	if re.search("(\d\d|\d)/(\d\d|\d)/(\d\d|\d), (\d\d|\d):(\d\d|\d) (AM|PM) - (.*):", i):
-	# 		date = i.split(",")[0]
-	# 		if date:
-	# 			date = list(map(lambda x: int(x), date.split("/")))
-	# 		time = re.search("(\d\d|\d):(\d\d|\d) (AM|PM)", i)
-	# 		if time:
-	# 			time = time.group().split()
-	# 			time[0] = list(map(lambda x: int(x),time[0].split(":")))
-	# 			if time[1] == "PM":
-	# 				time[0][0] += 12
-	# 			time = time[0]
-	# 		#Will bug a bit if somebodies name has a colon inside.....
-	# 		speaker = re.search(" - (.*): ", i)
-	# 		text = re.split("(.*): ", i, 1)[-1]
-	# 		if speaker:
-	# 			mess_list.append({"date":date, "time":time, "speaker":speaker.group()[3:-2], "text":text[:-1]})
-	# return mess_list
 
 x = chat(iotext)
 
@@ -127,5 +95,3 @@ stats(x)
 # for i in range(new_text_length):
 # 	word = random.choice(word_dict[word])
 # 	new_string += word + " "
-
-# print(new_string)
