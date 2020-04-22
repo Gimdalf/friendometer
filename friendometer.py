@@ -2,10 +2,11 @@ import re
 import random
 # new_text_length = int(input("New text length:\n"))
 # text = input().split()
-iotext = open("samples/gc.txt", "r", encoding="utf8")
+filename = input("Chat history filename: \n")
+iotext = open("%s"%(filename), "r", encoding="utf8")
 import matplotlib.pyplot as plt
 # text = iotext.read().split()
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 word_dict = {}
 
@@ -34,16 +35,13 @@ class chat:
 			if re.search("(\d\d|\d)/(\d\d|\d)/(\d\d|\d), (\d\d|\d):(\d\d|\d) (AM|PM) - (.*):", i):
 				i = i.split(" - ")
 				dt = datetime.strptime(i[0], "%m/%d/%y, %I:%M %p")
-				# Will bug a bit if somebodies name conbtains ": "inside.....
-				# Stop at first ":"?
-				# print(i.split(":"))
 				speaker = i[1].split(": ")[0]
-				# print(speaker)
 				text = "".join(i[1].split(": ")[1:])
 				if speaker:
 					if speaker in self.num_speak:
 						self.message_list.append(message(dt, text[:-1], self.num_speak[speaker]))
 					else:
+						print(i)
 						self.num_speak[speaker] = len(self.speakers)
 						self.speakers.append(speaker)
 						self.message_list.append(message(dt, text[:-1], self.num_speak[speaker]))
@@ -55,21 +53,36 @@ class chat:
 
 def stats(i_chat):
 	#smt - speaker message tally
-	smt = [{'total_messages':0,'initiated':0,'ert':0, 'trt':0.0, 'trs': 0}]*len(i_chat.speakers)
-	start_date = i_chat.message_list[0].dt.date()
-	# print("start date:" + str(start_date))
-	end_date = date.today()
+	start_time = i_chat.message_list[0].dt 
+	#ert - Earliest Response Time, trt - Total Response Time, trs - Total ResponseS
+	smt = [{'total_messages':0,'initiated':0,'ert':start_time, 'trt':timedelta(), 'trs': 0} for i in range(len(i_chat.speakers))]
+	# print("start date:" + str(start_time))
+	end_time = i_chat.message_list[-1].dt
 	#mmt - month message tally, key - (month,year), value - tally
-	month_keys = [((i+start_date.month)%12 if (i+start_date.month)%12 != 0  else 12, start_date.year + int((i+start_date.month-1)/12)) for i in range((end_date.year-start_date.year)*12+end_date.month-start_date.month+1)]
+	month_keys = [((i+start_time.month)%12 if (i+start_time.month)%12 != 0  else 12, start_time.year + int((i+start_time.month-1)/12)) for i in range((end_time.year-start_time.year)*12+end_time.month-start_time.month+1)]
 	mmt = {key: [0]*len(i_chat.speakers) for key in month_keys}
 	# print(mmt)
+	#p_speak - previous speaker
+	p_speak = i_chat.message_list[0].speaker_num
+	p_time = start_time
 	for i in i_chat.message_list:
-		smt[i.speaker_num]['total_messages'] += 1
-		mmt[(i.dt.month, i.dt.year)][i.speaker_num] += 1
-	print(mmt)
+		speaker = i.speaker_num
+		if speaker != p_speak:
+			smt[speaker]['trt'] += (i.dt - smt[speaker]['ert'])
+			smt[speaker]['trs'] += 1 
+			smt[p_speak]['ert'] = i.dt
+			p_speak = speaker
+		#6 hours parameter was chosen arbitrarily
+		if (i.dt - p_time) > timedelta(hours = 6):
+			smt[speaker]['initiated'] += 1
+		p_time = i.dt
+		smt[speaker]['total_messages'] += 1
+		mmt[(i.dt.month, i.dt.year)][speaker] += 1
 	for sn, vals in enumerate(smt):
 		speaker_name = i_chat.speakers[sn]
-		print("Number of messages sent by %s: %d"%(speaker_name, vals['total_messages']))
+		#art - average response time
+		art = (vals['trt'] + (end_time - vals['ert']))/vals['trs']
+		print("%s: \nNumber of messages sent: %d\nAverage Response time: %s\nConversations initiated: %d\n"%(speaker_name, vals['total_messages'], str(art), vals['initiated']))
 		plt.plot(["%d/%d"%(key[0], key[1]) for key in month_keys], [mmt[key][sn] for key in month_keys], label = speaker_name)
 		plt.legend()
 	plt.show()
